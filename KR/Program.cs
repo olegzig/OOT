@@ -55,7 +55,7 @@ namespace GeometryFigures
         }
     }
 
-    // Класс с оформительскими свойствами (наследование от Location)
+    // Класс с оформительскими свойствами
     public class Primitive : Location
     {
         public ConsoleColor Color { get; set; }
@@ -91,76 +91,145 @@ namespace GeometryFigures
         public Point(Point other) : base(other) { }
     }
 
-    // Пример фигуры - прямоугольник (ваш вариант может отличаться)
-    public class Rectangle : Point
-    {
-        public double Width { get; private set; }
-        public double Height { get; private set; }
+    public enum RotationDirection { Clockwise, CounterClockwise }
 
-        public Rectangle() : base()
+    public class CircleSector : Point
+    {
+        public double Radius { get; private set; }
+        public double StartAngle { get; private set; }  // В градусах
+        public double EndAngle { get; private set; }    // В градусах
+        public RotationDirection Direction { get; private set; }
+
+        public CircleSector() : base()
         {
-            Width = 0;
-            Height = 0;
+            Radius = 1;
+            StartAngle = 0;
+            EndAngle = 90;
+            Direction = RotationDirection.CounterClockwise;
         }
 
-        public Rectangle(double x, double y, ConsoleColor color, bool isVisible, 
-                        double width, double height) : base(x, y, color, isVisible)
+        public CircleSector(double x, double y, ConsoleColor color, bool isVisible,
+                          double radius, double startAngle, double endAngle,
+                          RotationDirection direction) : base(x, y, color, isVisible)
         {
-            Width = width;
-            Height = height;
+            Radius = radius;
+            StartAngle = startAngle;
+            EndAngle = endAngle;
+            Direction = direction;
             ValidateBounds();
         }
 
-        public Rectangle(Rectangle other) : base(other)
+        public CircleSector(CircleSector other) : base(other)
         {
-            Width = other.Width;
-            Height = other.Height;
+            Radius = other.Radius;
+            StartAngle = other.StartAngle;
+            EndAngle = other.EndAngle;
+            Direction = other.Direction;
         }
 
-        public double Perimeter => 2 * (Width + Height);
-        public double Area => Width * Height;
+        // Периметр (длина дуги + 2 радиуса)
+        public double Perimeter => ArcLength + 2 * Radius;
+        
+        // Площадь сектора
+        public double Area => (Math.PI * Radius * Radius) * SweepAngle / 360;
+        
+        // Угол развертки в градусах
+        public double SweepAngle => CalculateSweepAngle();
+        
+        // Длина дуги
+        public double ArcLength => (Math.PI * Radius * 2) * SweepAngle / 360;
 
         public Clip GetBoundingClip()
         {
-            return new Clip
+            double minX = X;
+            double maxX = X;
+            double minY = Y;
+            double maxY = Y;
+
+            foreach (var point in GetCriticalPoints())
             {
-                MinX = X - Width / 2,
-                MaxX = X + Width / 2,
-                MinY = Y - Height / 2,
-                MaxY = Y + Height / 2
-            };
+                minX = Math.Min(minX, point.X);
+                maxX = Math.Max(maxX, point.X);
+                minY = Math.Min(minY, point.Y);
+                maxY = Math.Max(maxY, point.Y);
+            }
+
+            return new Clip(minX, maxX, minY, maxY);
         }
 
-        public void Resize(double width, double height)
+        public void Resize(double radius, double startAngle, double endAngle)
         {
-            Width = width;
-            Height = height;
+            Radius = radius;
+            StartAngle = startAngle;
+            EndAngle = endAngle;
             ValidateBounds();
+        }
+
+        public void SetDirection(RotationDirection direction)
+        {
+            Direction = direction;
+            ValidateBounds();
+        }
+
+        private double CalculateSweepAngle()
+        {
+            double angle = Direction == RotationDirection.CounterClockwise 
+                ? EndAngle - StartAngle 
+                : StartAngle - EndAngle;
+
+            if (angle < 0) angle += 360;
+            return angle;
+        }
+
+        private System.Collections.Generic.IEnumerable<Location> GetCriticalPoints()
+        {
+            // Возвращает критические точки для вычисления ограничивающей области
+            yield return new Location(X, Y);
+            
+            int steps = 10;
+            double step = SweepAngle / steps;
+            
+            for (int i = 0; i <= steps; i++)
+            {
+                double angle = StartAngle + (Direction == RotationDirection.CounterClockwise 
+                    ? step * i 
+                    : -step * i);
+                
+                double rad = angle * Math.PI / 180;
+                yield return new Location(
+                    X + Radius * Math.Cos(rad),
+                    Y + Radius * Math.Sin(rad)
+                );
+            }
         }
 
         private void ValidateBounds()
         {
-            Clip clip = GetBoundingClip();
-            if (!Geometry.IsWithinBounds(new Location(clip.MinX, clip.MinY)) ||
-                !Geometry.IsWithinBounds(new Location(clip.MaxX, clip.MaxY)))
-                throw new ArgumentException("Фигура выходит за границы!");
+            foreach (var point in GetCriticalPoints())
+            {
+                if (!Geometry.IsWithinBounds(point))
+                    throw new ArgumentException("Фигура выходит за границы!");
+            }
         }
     }
 
     public static class FigureModifier
     {
-        public static void ModifyFigure(ref Rectangle figure)
+        public static void ModifyFigure(ref CircleSector sector)
         {
             while (true)
             {
-                Console.WriteLine("\nТекущие параметры фигуры:");
-                Console.WriteLine($"1. X: {figure.X}");
-                Console.WriteLine($"2. Y: {figure.Y}");
-                Console.WriteLine($"3. Цвет: {figure.Color}");
-                Console.WriteLine($"4. Видимость: {figure.IsVisible}");
-                Console.WriteLine($"5. Ширина: {figure.Width}");
-                Console.WriteLine($"6. Высота: {figure.Height}");
-                Console.WriteLine("7. Выход");
+                Console.WriteLine("\nТекущие параметры сектора:");
+                Console.WriteLine($"1. X: {sector.X}");
+                Console.WriteLine($"2. Y: {sector.Y}");
+                Console.WriteLine($"3. Цвет: {sector.Color}");
+                Console.WriteLine($"4. Видимость: {sector.IsVisible}");
+                Console.WriteLine($"5. Радиус: {sector.Radius}");
+                Console.WriteLine($"6. Начальный угол: {sector.StartAngle}°");
+                Console.WriteLine($"7. Конечный угол: {sector.EndAngle}°");
+                Console.WriteLine($"8. Направление: {sector.Direction}");
+                Console.WriteLine($"9. Показать характеристики");
+                Console.WriteLine("10. Выход");
 
                 Console.Write("Выберите параметр для изменения: ");
                 string choice = Console.ReadLine();
@@ -171,36 +240,53 @@ namespace GeometryFigures
                     {
                         case "1":
                             Console.Write("Новое значение X: ");
-                            figure.X = double.Parse(Console.ReadLine());
+                            sector.X = double.Parse(Console.ReadLine());
                             break;
                         case "2":
                             Console.Write("Новое значение Y: ");
-                            figure.Y = double.Parse(Console.ReadLine());
+                            sector.Y = double.Parse(Console.ReadLine());
                             break;
                         case "3":
                             Console.WriteLine("Доступные цвета:");
                             foreach (var color in Enum.GetValues(typeof(ConsoleColor)))
                                 Console.WriteLine(color);
                             Console.Write("Выберите цвет: ");
-                            figure.Color = (ConsoleColor)Enum.Parse(
+                            sector.Color = (ConsoleColor)Enum.Parse(
                                 typeof(ConsoleColor), Console.ReadLine(), true);
                             break;
                         case "4":
-                            figure.IsVisible = !figure.IsVisible;
+                            sector.IsVisible = !sector.IsVisible;
                             break;
                         case "5":
-                            Console.Write("Новая ширина: ");
-                            double w = double.Parse(Console.ReadLine());
-                            Console.Write("Новая высота: ");
-                            double h = double.Parse(Console.ReadLine());
-                            figure.Resize(w, h);
+                            Console.Write("Новый радиус: ");
+                            double r = double.Parse(Console.ReadLine());
+                            sector.Resize(r, sector.StartAngle, sector.EndAngle);
                             break;
                         case "6":
-                            Console.Write("Новая высота: ");
-                            double height = double.Parse(Console.ReadLine());
-                            figure.Resize(figure.Width, height);
+                            Console.Write("Новый начальный угол: ");
+                            double sa = double.Parse(Console.ReadLine());
+                            sector.Resize(sector.Radius, sa, sector.EndAngle);
                             break;
                         case "7":
+                            Console.Write("Новый конечный угол: ");
+                            double ea = double.Parse(Console.ReadLine());
+                            sector.Resize(sector.Radius, sector.StartAngle, ea);
+                            break;
+                        case "8":
+                            Console.WriteLine("Доступные направления:");
+                            foreach (var dir in Enum.GetValues(typeof(RotationDirection)))
+                                Console.WriteLine(dir);
+                            Console.Write("Выберите направление: ");
+                            sector.SetDirection((RotationDirection)Enum.Parse(
+                                typeof(RotationDirection), Console.ReadLine(), true));
+                            break;
+                        case "9":
+                            Console.WriteLine($"Периметр: {sector.Perimeter:F2}");
+                            Console.WriteLine($"Площадь: {sector.Area:F2}");
+                            Console.WriteLine($"Угол развертки: {sector.SweepAngle:F2}°");
+                            Console.WriteLine($"Длина дуги: {sector.ArcLength:F2}");
+                            break;
+                        case "10":
                             return;
                         default:
                             Console.WriteLine("Неверный выбор!");
@@ -215,13 +301,12 @@ namespace GeometryFigures
         }
     }
 
-    // Пример использования
     class Program
     {
         static void Main(string[] args)
         {
-            Rectangle rect = new Rectangle(0, 0, ConsoleColor.Red, true, 20, 10);
-            FigureModifier.ModifyFigure(ref rect);
+            CircleSector sector = new CircleSector(0, 0, ConsoleColor.Green, true, 10, 0, 90, RotationDirection.CounterClockwise);
+            FigureModifier.ModifyFigure(ref sector);
         }
     }
 }
