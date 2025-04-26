@@ -1,8 +1,4 @@
-﻿using System;
-using System.IO;
-using System.Threading;
-
-class Program
+﻿class Program
 {
     private static readonly int arraySize = 50000;
 
@@ -33,38 +29,38 @@ class Program
         selectionThread.Start();
 
         bool running = true;
-while (running)
-{
-    try
-    {
-        if (Console.KeyAvailable) // Теперь в try-catch
+        while (running)
         {
-            var key = Console.ReadKey(true).Key;
-            if (key == ConsoleKey.Spacebar)
+            try
             {
-                heapContext.PauseRequested = !heapContext.PauseRequested;
-                selectionContext.PauseRequested = !selectionContext.PauseRequested;
+                if (Console.KeyAvailable)
+                {
+                    var key = Console.ReadKey(true).Key;
+                    if (key == ConsoleKey.Spacebar)
+                    {
+                        heapContext.PauseRequested = !heapContext.PauseRequested;
+                        selectionContext.PauseRequested = !selectionContext.PauseRequested;
+                    }
+                    else if (key == ConsoleKey.Escape)
+                    {
+                        heapContext.CancelRequested = true;
+                        selectionContext.CancelRequested = true;
+                        running = false;
+                    }
+                }
             }
-            else if (key == ConsoleKey.Escape)
+            catch (InvalidOperationException)
             {
-                heapContext.CancelRequested = true;
-                selectionContext.CancelRequested = true;
+                // Игнорируем ошибку, если консоль недоступна для ввода
                 running = false;
             }
+
+            Console.SetCursorPosition(0, 2);
+            Console.WriteLine($"Пирамидальная сортировка: {heapContext.Progress}%   ");
+            Console.WriteLine($"Сортировка выбором:       {selectionContext.Progress}%   ");
+
+            Thread.Sleep(50);
         }
-    }
-    catch (InvalidOperationException)
-    {
-        // Игнорируем ошибку, если консоль недоступна для ввода
-        running = false;
-    }
-
-    Console.SetCursorPosition(0, 2);
-    Console.WriteLine($"Пирамидальная сортировка: {heapContext.Progress}%   ");
-    Console.WriteLine($"Сортировка выбором:       {selectionContext.Progress}%   ");
-
-    Thread.Sleep(50);
-}
 
         heapThread.Join();
         selectionThread.Join();
@@ -109,7 +105,7 @@ while (running)
             CheckStatus(context);
             Swap(arr, 0, i);
             Heapify(arr, i, 0);
-            context.Progress = 50 + (int)((n - i) / (double)n * 50);
+            context.Progress = 50 + (int)((n - i - 1) / (double)(n - 1) * 50);
         }
 
         context.Progress = 100;
