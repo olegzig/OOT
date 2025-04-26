@@ -80,7 +80,7 @@ namespace GeometryFigures
         }
     }
 
-    // Класс точки (наследуем от Primitive)
+    // Класс точки
     public class Point : Primitive
     {
         public Point() : base() { }
@@ -96,8 +96,8 @@ namespace GeometryFigures
     public class CircleSector : Point
     {
         public double Radius { get; private set; }
-        public double StartAngle { get; private set; }  // В градусах
-        public double EndAngle { get; private set; }    // В градусах
+        public double StartAngle { get; private set; } 
+        public double EndAngle { get; private set; }
         public RotationDirection Direction { get; private set; }
 
         public CircleSector() : base()
@@ -127,11 +127,11 @@ namespace GeometryFigures
             Direction = other.Direction;
         }
 
-        // Периметр (длина дуги + 2 радиуса)
+        // Периметр
         public double Perimeter => ArcLength + 2 * Radius;
         
         // Площадь сектора
-        public double Area => (Math.PI * Radius * Radius) * SweepAngle / 360;
+        public double Area => (Math.PI * Radius * Radius) * (SweepAngle / 360);
         
         // Угол развертки в градусах
         public double SweepAngle => CalculateSweepAngle();
