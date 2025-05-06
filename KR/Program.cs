@@ -2,215 +2,203 @@
 
 namespace GeometryFigures
 {
-    // Класс для описания положения
-    public class Location
+    public interface ILocation
+    {
+        double X { get; set; }
+        double Y { get; set; }
+        void SetPosition(double x, double y);
+    }
+
+    public interface IStylable
+    {
+        ConsoleColor Color { get; set; }
+        bool IsVisible { get; set; }
+    }
+
+    public interface IBoundable
+    {
+        Clip GetClipBox();
+    }
+
+    public interface ICalculable
+    {
+        double Perimeter { get; }
+        double Area { get; }
+    }
+
+    public class Location : ILocation
     {
         public double X { get; set; }
         public double Y { get; set; }
 
-        public Location() : this(0, 0) { }
-
-        public Location(double x, double y)
+        public Location(double x = 0, double y = 0)
         {
             X = x;
             Y = y;
         }
 
-        public Location(Location other) : this(other.X, other.Y) { }
-    }
-
-    // Класс для ограничивающей области
-    public class Clip
-    {
-        public double MinX { get; set; }
-        public double MaxX { get; set; }
-        public double MinY { get; set; }
-        public double MaxY { get; set; }
-
-        public Clip() : this(0, 0, 0, 0) { }
-
-        public Clip(double minX, double maxX, double minY, double maxY)
+        public void SetPosition(double x, double y)
         {
-            MinX = minX;
-            MaxX = maxX;
-            MinY = minY;
-            MaxY = maxY;
+            X = Geometry.AccurateExtent(x);
+            Y = Geometry.AccurateExtent(y);
         }
-
-        public Clip(Clip other) : this(other.MinX, other.MaxX, other.MinY, other.MaxY) { }
     }
 
-    // Статический класс с методами проверки
     public static class Geometry
     {
-        public static Clip GlobalClip { get; set; } = new Clip(-100, 100, -100, 100);
-        public const double Epsilon = 1e-5;
+        public const double Extent = 1e6;
+        public const double Pi = Math.PI;
 
-        public static bool IsWithinBounds(Location location)
+        public static double AccurateExtent(double value)
         {
-            return location.X >= GlobalClip.MinX - Epsilon &&
-                   location.X <= GlobalClip.MaxX + Epsilon &&
-                   location.Y >= GlobalClip.MinY - Epsilon &&
-                   location.Y <= GlobalClip.MaxY + Epsilon;
+            return Math.Clamp(value, -Extent, Extent);
         }
     }
 
-    // Класс с оформительскими свойствами
-    public class Primitive : Location
+    public class Clip
     {
-        public ConsoleColor Color { get; set; }
-        public bool IsVisible { get; set; }
+        public Location Min { get; }
+        public Location Max { get; }
 
-        public Primitive() : base()
+        public Clip(Location min, Location max)
         {
-            Color = ConsoleColor.White;
-            IsVisible = true;
+            Min = new Location(min.X, min.Y);
+            Max = new Location(max.X, max.Y);
         }
 
-        public Primitive(double x, double y, ConsoleColor color, bool isVisible) : base(x, y)
-        {
-            Color = color;
-            IsVisible = isVisible;
-        }
-
-        public Primitive(Primitive other) : base(other.X, other.Y)
-        {
-            Color = other.Color;
-            IsVisible = other.IsVisible;
-        }
+        public double SizeX => Max.X - Min.X;
+        public double SizeY => Max.Y - Min.Y;
     }
 
-    // Класс точки
-    public class Point : Primitive
+    public class Primitive : ILocation, IStylable
     {
-        public Point() : base() { }
+        private readonly Location _location = new Location();
 
-        public Point(double x, double y, ConsoleColor color, bool isVisible) 
-            : base(x, y, color, isVisible) { }
+        public double X
+        {
+            get => _location.X;
+            set => _location.X = Geometry.AccurateExtent(value);
+        }
 
-        public Point(Point other) : base(other) { }
+        public double Y
+        {
+            get => _location.Y;
+            set => _location.Y = Geometry.AccurateExtent(value);
+        }
+
+        public ConsoleColor Color { get; set; } = ConsoleColor.White;
+        public bool IsVisible { get; set; } = true;
+
+        public void SetPosition(double x, double y) => _location.SetPosition(x, y);
     }
 
     public enum RotationDirection { Clockwise, CounterClockwise }
-
-    public class CircleSector : Point
+    public class CircleSector : Primitive, IBoundable, ICalculable
     {
         public double Radius { get; private set; }
-        public double StartAngle { get; private set; } 
+        public double StartAngle { get; private set; }
         public double EndAngle { get; private set; }
         public RotationDirection Direction { get; private set; }
 
-        public CircleSector() : base()
+        public CircleSector(double radius = 1, double startAngle = 0, double endAngle = 90, RotationDirection direction = RotationDirection.CounterClockwise)
         {
-            Radius = 1;
-            StartAngle = 0;
-            EndAngle = 90;
-            Direction = RotationDirection.CounterClockwise;
-        }
-
-        public CircleSector(double x, double y, ConsoleColor color, bool isVisible,
-                          double radius, double startAngle, double endAngle,
-                          RotationDirection direction) : base(x, y, color, isVisible)
-        {
-            Radius = radius;
-            StartAngle = startAngle;
-            EndAngle = endAngle;
+            SetRadius(radius);
+            SetAngles(startAngle, endAngle);
             Direction = direction;
-            ValidateBounds();
         }
-
-        public CircleSector(CircleSector other) : base(other)
-        {
-            Radius = other.Radius;
-            StartAngle = other.StartAngle;
-            EndAngle = other.EndAngle;
-            Direction = other.Direction;
-        }
-
-        // Периметр
-        public double Perimeter => ArcLength + 2 * Radius;
-        
-        // Площадь сектора
-        public double Area => (Math.PI * Radius * Radius) * (SweepAngle / 360);
-        
-        // Угол развертки в градусах
-        public double SweepAngle => CalculateSweepAngle();
-        
-        // Длина дуги
-        public double ArcLength => (Math.PI * Radius * 2) * SweepAngle / 360;
-
-        public Clip GetBoundingClip()
-        {
-            double minX = X;
-            double maxX = X;
-            double minY = Y;
-            double maxY = Y;
-
-            foreach (var point in GetCriticalPoints())
-            {
-                minX = Math.Min(minX, point.X);
-                maxX = Math.Max(maxX, point.X);
-                minY = Math.Min(minY, point.Y);
-                maxY = Math.Max(maxY, point.Y);
-            }
-
-            return new Clip(minX, maxX, minY, maxY);
-        }
-
-        public void Resize(double radius, double startAngle, double endAngle)
-        {
-            Radius = radius;
-            StartAngle = startAngle;
-            EndAngle = endAngle;
-            ValidateBounds();
-        }
-
         public void SetDirection(RotationDirection direction)
         {
             Direction = direction;
-            ValidateBounds();
+            UpdateAngles();
         }
 
-        private double CalculateSweepAngle()
+        private void UpdateAngles()
         {
-            double angle = Direction == RotationDirection.CounterClockwise 
-                ? EndAngle - StartAngle 
-                : StartAngle - EndAngle;
-
-            if (angle < 0) angle += 360;
-            return angle;
+            // Корректировка углов при смене направления
+            double temp = StartAngle;
+            StartAngle = EndAngle;
+            EndAngle = temp;
         }
 
-        private System.Collections.Generic.IEnumerable<Location> GetCriticalPoints()
+        public void SetAngles(double start, double end)
         {
-            // Возвращает критические точки для вычисления ограничивающей области
-            yield return new Location(X, Y);
-            
-            int steps = 10;
-            double step = SweepAngle / steps;
-            
-            for (int i = 0; i <= steps; i++)
+            StartAngle = start % 360;
+            EndAngle = end % 360;
+
+            if (Direction == RotationDirection.Clockwise && StartAngle < EndAngle)
+                StartAngle += 360;
+        }
+
+        public void SetRadius(double radius)
+        {
+            if (radius <= 0) throw new ArgumentException("Radius must be positive");
+            Radius = radius;
+            ValidatePosition();
+        }
+
+        public void Resize(double newRadius, double newStartAngle, double newEndAngle)
+        {
+            // Валидация радиуса
+            if (newRadius <= 0)
+                throw new ArgumentException("Радиус должен быть положительным числом", nameof(newRadius));
+
+            // Корректировка углов при смене направления
+            if (Direction == RotationDirection.Clockwise && newStartAngle < newEndAngle)
+                newStartAngle += 360;
+
+            // Применение новых значений
+            Radius = newRadius;
+            StartAngle = newStartAngle % 360;
+            EndAngle = newEndAngle % 360;
+
+            // Проверка границ
+            ValidatePosition();
+            ValidateAngles();
+        }
+
+        private void ValidateAngles()
+        {
+            // Нормализация углов
+            if (Direction == RotationDirection.CounterClockwise && StartAngle > EndAngle)
+                EndAngle += 360;
+
+            if (Direction == RotationDirection.Clockwise && StartAngle < EndAngle)
+                StartAngle += 360;
+        }
+
+        public void Resize(double newRadius) => Resize(newRadius, StartAngle, EndAngle);
+
+        public double SweepAngle
+        {
+            get
             {
-                double angle = StartAngle + (Direction == RotationDirection.CounterClockwise 
-                    ? step * i 
-                    : -step * i);
-                
-                double rad = angle * Math.PI / 180;
-                yield return new Location(
-                    X + Radius * Math.Cos(rad),
-                    Y + Radius * Math.Sin(rad)
-                );
+                double angle = Direction == RotationDirection.CounterClockwise
+                    ? EndAngle - StartAngle
+                    : StartAngle - EndAngle;
+
+                return (angle < 0) ? angle + 360 : angle;
             }
         }
 
-        private void ValidateBounds()
+        public double Perimeter =>
+            (2 * Math.PI * Radius * SweepAngle / 360) + 2 * Radius;
+
+        public double Area =>
+            (Math.PI * Radius * Radius * SweepAngle) / 360;
+
+        public double ArcLength =>
+            (Math.PI * Radius * 2) * SweepAngle / 360;
+
+        private void ValidatePosition()
         {
-            foreach (var point in GetCriticalPoints())
-            {
-                if (!Geometry.IsWithinBounds(point))
-                    throw new ArgumentException("Фигура выходит за границы!");
-            }
+            X = Math.Clamp(X, -Geometry.Extent + Radius, Geometry.Extent - Radius);
+            Y = Math.Clamp(Y, -Geometry.Extent + Radius, Geometry.Extent - Radius);
         }
+
+        public Clip GetClipBox() => new Clip(
+            new Location(X - Radius, Y - Radius),
+            new Location(X + Radius, Y + Radius)
+        );
     }
 
     public static class FigureModifier
@@ -274,11 +262,12 @@ namespace GeometryFigures
                             break;
                         case "8":
                             Console.WriteLine("Доступные направления:");
-                            foreach (var dir in Enum.GetValues(typeof(RotationDirection)))
-                                Console.WriteLine(dir);
-                            Console.Write("Выберите направление: ");
-                            sector.SetDirection((RotationDirection)Enum.Parse(
-                                typeof(RotationDirection), Console.ReadLine(), true));
+                            foreach (RotationDirection dir in Enum.GetValues(typeof(RotationDirection)))
+                                Console.WriteLine($"- {dir}");
+
+                            Console.Write("Введите направление: ");
+                            if (Enum.TryParse(Console.ReadLine(), true, out RotationDirection newDir))
+                                sector.SetDirection(newDir);
                             break;
                         case "9":
                             Console.WriteLine($"Периметр: {sector.Perimeter:F2}");
@@ -305,7 +294,7 @@ namespace GeometryFigures
     {
         static void Main(string[] args)
         {
-            CircleSector sector = new CircleSector(0, 0, ConsoleColor.Green, true, 10, 0, 90, RotationDirection.CounterClockwise);
+            CircleSector sector = new CircleSector();
             FigureModifier.ModifyFigure(ref sector);
         }
     }

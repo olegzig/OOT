@@ -51,13 +51,16 @@
             }
             catch (InvalidOperationException)
             {
-                // Игнорируем ошибку, если консоль недоступна для ввода
                 running = false;
             }
 
             Console.SetCursorPosition(0, 2);
             Console.WriteLine($"Пирамидальная сортировка: {heapContext.Progress}%   ");
             Console.WriteLine($"Сортировка выбором:       {selectionContext.Progress}%   ");
+
+            // Автоматическое завершение, если оба потока завершены
+            if (!heapThread.IsAlive && !selectionThread.IsAlive)
+                running = false;
 
             Thread.Sleep(50);
         }
